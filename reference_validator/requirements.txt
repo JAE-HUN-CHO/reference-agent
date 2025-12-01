@@ -13,6 +13,9 @@ langgraph>=0.2.0
 # LLM 프로바이더
 # ============================================================================
 
+# Upstage (기본)
+langchain-upstage>=0.3.0
+
 # Ollama (로컬 LLM)
 langchain-ollama>=0.2.0
 

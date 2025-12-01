@@ -31,7 +31,7 @@ Parser Agent -> Web Agent -> Validation Agent -> Context Agent -> Citation Agent
 reference_validator/
 ├── __init__.py              # Package initialization, exports validate_paper()
 ├── main.py                  # CLI entry point
-├── config.py                # LLM configuration (Ollama/OpenAI/Anthropic/Google)
+├── config.py                # LLM configuration (Upstage/Ollama/OpenAI/Anthropic/Google)
 ├── schema.py                # Pydantic data models and LangGraph state
 ├── supervisor.py            # LangGraph workflow orchestration
 ├── requirements.txt         # Dependencies
@@ -68,7 +68,8 @@ reference_validator/
 
 ### LLM Configuration (config.py)
 Supports multiple providers:
-- **Ollama** (default): `glm-4.6:cloud`, `llama3.2`, `qwen2.5`, `gemma2`, `mistral`
+- **Upstage** (default): `solar-pro2`, `solar-mini`
+- **Ollama**: `glm-4.6:cloud`, `llama3.2`, `qwen2.5`, `gemma2`, `mistral`
 - **OpenAI**: `gpt-4o`, `gpt-4o-mini`
 - **Anthropic**: `claude-sonnet-4-20250514`, `claude-3-haiku`
 - **Google**: `gemini-2.5-pro`, `gemini-2.5-flash`
@@ -91,19 +92,25 @@ source venv/bin/activate  # Linux/Mac
 # Install dependencies
 pip install -r reference_validator/requirements.txt
 
-# For local LLM (Ollama)
+# Set Upstage API key (default provider)
+export UPSTAGE_API_KEY=your_key
+
+# For local LLM (Ollama - optional)
 ollama pull llama3.2
 ```
 
 ### Running the System
 ```bash
-# Deep Agent mode (default)
+# Deep Agent mode (default, uses Upstage solar-pro2)
 python reference_validator/main.py paper.pdf
 
 # LangGraph mode
 python reference_validator/main.py paper.pdf --mode langgraph
 
-# With specific LLM
+# With Ollama (local LLM)
+python reference_validator/main.py paper.pdf --provider ollama --model llama3.2
+
+# With OpenAI
 python reference_validator/main.py paper.pdf --provider openai --model gpt-4o
 
 # Limit references
@@ -114,11 +121,13 @@ python reference_validator/main.py paper.pdf --max-refs 10
 ```python
 from reference_validator import validate_paper, configure
 
-# Configure LLM
-configure(provider="ollama", model_name="llama3.2")
-
-# Run validation
+# Default: Upstage solar-pro2
 report = validate_paper("paper.pdf")
+
+# Or configure specific LLM
+configure(provider="ollama", model_name="llama3.2")
+report = validate_paper("paper.pdf")
+
 print(f"Valid: {report.valid_count}/{report.total_references}")
 ```
 
@@ -126,6 +135,7 @@ print(f"Valid: {report.valid_count}/{report.total_references}")
 
 | Variable | Description | Required |
 |----------|-------------|----------|
+| `UPSTAGE_API_KEY` | Upstage API key (default provider) | Yes (default) |
 | `TAVILY_API_KEY` | Tavily web search API | Recommended |
 | `OPENAI_API_KEY` | OpenAI API key | If using OpenAI |
 | `ANTHROPIC_API_KEY` | Anthropic API key | If using Claude |
@@ -226,7 +236,8 @@ Results are saved as JSON with structure:
 
 1. **Primary language**: Korean documentation, English code
 2. **Default mode**: Deep Agent (`--mode deep-agent`)
-3. **LLM dependency**: System requires LLM access (local Ollama or cloud API)
-4. **Search tools**: Tavily provides best results but requires API key; Semantic Scholar and CrossRef work without keys
-5. **State management**: LangGraph mode uses `ReferenceValidationState`; Deep Agent mode uses `DeepAgentState`
-6. **PDF handling**: Uses pypdf for text extraction; complex layouts may require preprocessing
+3. **Default LLM**: Upstage `solar-pro2` (requires `UPSTAGE_API_KEY`)
+4. **LLM dependency**: System requires LLM access (Upstage cloud API by default, or local Ollama)
+5. **Search tools**: Tavily provides best results but requires API key; Semantic Scholar and CrossRef work without keys
+6. **State management**: LangGraph mode uses `ReferenceValidationState`; Deep Agent mode uses `DeepAgentState`
+7. **PDF handling**: Uses pypdf for text extraction; complex layouts may require preprocessing
