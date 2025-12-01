@@ -191,10 +191,11 @@ Start by creating your TODO list and then proceed with the validation."""
         
         # Run the agent
         try:
-            # Invoke the LangGraph agent
-            result = self.agent.invoke({
-                "messages": [HumanMessage(content=task)],
-            })
+            # Invoke the LangGraph agent (높은 recursion_limit 설정 - 많은 레퍼런스 처리용)
+            result = self.agent.invoke(
+                {"messages": [HumanMessage(content=task)]},
+                {"recursion_limit": 300}
+            )
             
             # Extract results from the agent output
             messages = result.get("messages", [])
@@ -245,9 +246,10 @@ Start by creating your TODO list and then proceed with the validation."""
             Dictionary containing task results
         """
         try:
-            result = self.agent.invoke({
-                "messages": [HumanMessage(content=task)],
-            })
+            result = self.agent.invoke(
+                {"messages": [HumanMessage(content=task)]},
+                {"recursion_limit": 300}
+            )
             
             # Extract output from messages
             messages = result.get("messages", [])
