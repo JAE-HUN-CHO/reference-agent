@@ -113,25 +113,76 @@ class DeepAgentState(TypedDict):
     processing_log: NotRequired[List[str]]
 
 
-def create_initial_deep_state(paper_path: str = "") -> DeepAgentState:
+def create_initial_deep_state(paper_path: str = "", preload_pdf: bool = True) -> DeepAgentState:
     """Create initial deep agent state for reference validation.
-    
+
     Args:
         paper_path: Path to the PDF paper to validate
-        
+        preload_pdf: Whether to pre-load PDF content into virtual filesystem
+
     Returns:
         Initialized DeepAgentState
     """
+    files = {}
+    paper_content = ""
+    paper_title = ""
+
+    # Pre-load PDF content if requested and file exists
+    if preload_pdf and paper_path and paper_path.endswith('.pdf'):
+        expanded_path = os.path.expanduser(paper_path)
+        if os.path.exists(expanded_path):
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(expanded_path)
+                num_pages = len(reader.pages)
+
+                # Extract text from all pages
+                text_parts = []
+                for i, page in enumerate(reader.pages):
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_parts.append(f"--- Page {i+1} ---\n{page_text}")
+
+                full_text = "\n\n".join(text_parts)
+                char_count = len(full_text)
+
+                # Try to extract title
+                if reader.metadata and reader.metadata.title:
+                    paper_title = reader.metadata.title
+                elif text_parts:
+                    first_lines = full_text.split('\n')[:5]
+                    for line in first_lines:
+                        if line.strip() and len(line.strip()) > 10:
+                            paper_title = line.strip()[:100]
+                            break
+
+                paper_content = full_text
+
+                # Save to virtual filesystem
+                files["/input/paper_text.md"] = f"# {paper_title}\n\n{full_text}"
+                files["/input/paper_info.md"] = f"""# Paper Information
+
+- **Title**: {paper_title}
+- **Path**: {paper_path}
+- **Pages**: {num_pages}
+- **Characters**: {char_count}
+- **Status**: Pre-loaded into virtual filesystem
+"""
+                print(f"   📄 PDF pre-loaded: {paper_title[:50]}... ({num_pages} pages, {char_count:,} chars)")
+
+            except Exception as e:
+                print(f"   ⚠️ PDF pre-load failed: {e}")
+
     return DeepAgentState(
         # Core Deep Agent fields
         messages=[],
         todos=[],
-        files={},
-        
+        files=files,
+
         # Reference validation fields
         paper_path=paper_path,
-        paper_content="",
-        paper_title="",
+        paper_content=paper_content,
+        paper_title=paper_title,
         references=[],
         citation_contexts=[],
         current_ref_index=0,

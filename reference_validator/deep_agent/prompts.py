@@ -100,6 +100,36 @@ Parameters:
 
 Important: This replaces the entire file content."""
 
+READ_REAL_FILE_DESCRIPTION = """Read content from a REAL file on the actual filesystem (not the virtual filesystem).
+
+Use this tool to access files that exist on disk, such as:
+- PDF papers to validate
+- Configuration files
+- Any external files needed for processing
+
+Parameters:
+- file_path (required): Absolute or relative path to the real file on disk
+- offset (optional, default=0): Line number to start reading from
+- limit (optional, default=2000): Maximum number of lines to read
+
+Returns file content with line numbers. For PDF files, use parse_pdf instead."""
+
+PARSE_PDF_DESCRIPTION = """Extract text content from a PDF file on the real filesystem.
+
+This tool reads a PDF file and extracts all text content, making it available for processing.
+The extracted text is automatically saved to the virtual filesystem at '/input/paper_text.md'.
+
+Parameters:
+- pdf_path (required): Path to the PDF file to parse
+
+Returns:
+- Extracted text content from the PDF
+- Paper title (if detected)
+- Number of pages processed
+- Character count
+
+Use this as the first step when validating references in a PDF paper."""
+
 FILE_USAGE_INSTRUCTIONS = """You have access to a virtual file system to help you retain and save context during reference validation.
 
 ## Workflow Process

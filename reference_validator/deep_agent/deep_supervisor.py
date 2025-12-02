@@ -23,7 +23,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 
 from .state import DeepAgentState, create_initial_deep_state
-from .file_tools import ls, read_file, write_file, save_to_file
+from .file_tools import ls, read_file, write_file, save_to_file, read_real_file, parse_pdf
 from .todo_tools import write_todos, read_todos, create_todos, format_todos_for_display
 from .research_tools import think_tool, create_tavily_search_tool
 from .task_tool import create_task_tool, SubAgent, get_default_subagents
@@ -90,10 +90,13 @@ class DeepAgentSupervisor:
         
         # All tools available to supervisor
         all_tools = [
-            # File system tools
+            # Virtual file system tools
             ls,
             read_file,
             write_file,
+            # Real file system tools (PDF 파싱 포함)
+            read_real_file,
+            parse_pdf,
             # TODO tools
             write_todos,
             read_todos,
@@ -153,13 +156,17 @@ class DeepAgentSupervisor:
 
 Validate up to {max_references} references.
 
+IMPORTANT: First use the `parse_pdf` tool to extract text from the PDF file at '{paper_path}'.
+This will save the content to /input/paper_text.md in the virtual filesystem.
+
 Your workflow should be:
-1. Create a TODO list to track progress
-2. Parse the PDF to extract references
-3. For each reference, search to verify it exists
-4. Validate each reference against search results
-5. Save results to the virtual file system
-6. Generate a final validation report
+1. Use `parse_pdf('{paper_path}')` to extract PDF content - THIS IS REQUIRED FIRST
+2. Create a TODO list to track progress
+3. Read the extracted text and identify references
+4. For each reference, search to verify it exists
+5. Validate each reference against search results
+6. Save results to the virtual file system
+7. Generate a final validation report
 
 Use the virtual file system to store:
 - Parsed references (input/references.md)
@@ -167,27 +174,31 @@ Use the virtual file system to store:
 - Validation results (validation/ref_[id].md)
 - Final report (reports/validation_report.md)
 
-Start by creating your TODO list and then proceed with the validation."""
+Start by using parse_pdf to extract the PDF content, then proceed with validation."""
         else:
             task = f"""Please validate ALL references in the paper at: {paper_path}
 
+IMPORTANT: First use the `parse_pdf` tool to extract text from the PDF file at '{paper_path}'.
+This will save the content to /input/paper_text.md in the virtual filesystem.
+
 Your workflow should be:
-1. Create a TODO list to track progress
-2. Parse the PDF to extract references
-3. For each reference, delegate searches to sub-agents for parallel processing
-4. Validate each reference against search results
-5. Save results to the virtual file system
-6. Generate a comprehensive final validation report
+1. Use `parse_pdf('{paper_path}')` to extract PDF content - THIS IS REQUIRED FIRST
+2. Create a TODO list to track progress
+3. Read the extracted text and identify references
+4. For each reference, delegate searches to sub-agents for parallel processing
+5. Validate each reference against search results
+6. Save results to the virtual file system
+7. Generate a comprehensive final validation report
 
 Use sub-agent delegation to process multiple references in parallel (up to {self.max_concurrent_agents} at a time).
 
 Use the virtual file system to store:
 - Parsed references (input/references.md)
-- Search results (search/ref_[id].md)  
+- Search results (search/ref_[id].md)
 - Validation results (validation/ref_[id].md)
 - Final report (reports/validation_report.md)
 
-Start by creating your TODO list and then proceed with the validation."""
+Start by using parse_pdf to extract the PDF content, then proceed with validation."""
         
         # Run the agent
         try:
