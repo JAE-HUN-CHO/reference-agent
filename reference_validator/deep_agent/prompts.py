@@ -102,19 +102,46 @@ Important: This replaces the entire file content."""
 
 FILE_USAGE_INSTRUCTIONS = """You have access to a virtual file system to help you retain and save context during reference validation.
 
+## PDF Content Access
+The PDF content is PRE-LOADED into the virtual file system to avoid context overflow.
+- **NEVER** try to read the PDF file directly from disk
+- Use `ls()` to see available files
+- Read `/input/paper_info.md` for paper metadata
+- Read `/input/references.md` for the reference list
+- Body content is chunked in `/input/body_chunk_*.md` files
+
 ## Workflow Process
-1. **Orient**: Use ls() to see existing files before starting work
-2. **Save**: Use write_file() to store the user's request so that we can keep it for later 
-3. **Research**: Proceed with research. The search tool will write files.  
-4. **Read**: Once you are satisfied with the collected sources, read the files and use them to validate references.
+1. **Orient**: Use ls() to see pre-loaded files before starting work
+2. **Read**: Read `/input/paper_info.md` for overview, then `/input/references.md`
+3. **Research**: Proceed with research. The search tool will write files.
+4. **Validate**: Use collected sources to validate references.
 
 ## File Organization
-- `/input/`: Original paper content and references
-- `/parsed/`: Extracted references and citation contexts
+- `/input/`: Pre-loaded paper content (chunked) and references
 - `/search/`: Search results for each reference
 - `/validation/`: Validation results for each reference
 - `/reports/`: Final validation reports
 """
+
+# ============================================================================
+# PDF Tool Descriptions
+# ============================================================================
+
+READ_PDF_DESCRIPTION = """Read a PDF file and load its content into the virtual file system.
+
+This tool extracts text from a PDF and chunks it into manageable parts stored
+in the virtual file system. Use ls() and read_file() to access the content after loading.
+
+Parameters:
+- pdf_path (required): Path to the PDF file to read
+
+The tool will:
+1. Extract text from all PDF pages
+2. Separate body content from references section
+3. Chunk large content into smaller files (~12KB each)
+4. Store everything in /input/ directory
+
+After using this tool, use ls() to see created files, then read_file() to access content."""
 
 # ============================================================================
 # Research Tool Descriptions
