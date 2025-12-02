@@ -57,3 +57,4 @@ deep_agents_ref/
 
 # PDF files (test papers)
 *.pdf
+.venv/
