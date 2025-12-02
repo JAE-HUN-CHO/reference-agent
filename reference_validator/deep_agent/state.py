@@ -78,14 +78,18 @@ class DeepAgentState(TypedDict):
     - messages: Agent conversation history
     - Reference validation specific fields
     """
-    
-    # ========== Core Deep Agent Fields ==========
-    # Agent conversation messages
+
+    # ========== Required fields for create_react_agent ==========
+    # Agent conversation messages (required by LangGraph)
     messages: Annotated[NotRequired[List[BaseMessage]], messages_reducer]
-    
+
+    # Remaining steps counter (required by create_react_agent)
+    remaining_steps: NotRequired[int]
+
+    # ========== Deep Agent Fields ==========
     # Task planning and progress tracking
     todos: NotRequired[List[Todo]]
-    
+
     # Virtual file system (filename -> content mapping)
     # Uses file_reducer for merging updates
     files: Annotated[NotRequired[Dict[str, str]], file_reducer]

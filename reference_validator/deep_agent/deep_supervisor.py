@@ -116,14 +116,16 @@ class DeepAgentSupervisor:
             max_concurrent_research_units=self.max_concurrent_agents,
             max_researcher_iterations=self.max_iterations,
         )
-        
+
         # Create react agent using LangGraph's prebuilt function
+        # Pass DeepAgentState as state_schema to enable virtual filesystem access
         agent = create_react_agent(
             model=self.model,
             tools=self.tools,
             prompt=system_prompt,
+            state_schema=DeepAgentState,  # Use our custom state with files, todos
         )
-        
+
         return agent
     
     def validate_paper(
@@ -202,10 +204,16 @@ Start by using parse_pdf to extract the PDF content, then proceed with validatio
         
         # Run the agent
         try:
-            # Invoke the LangGraph agent (높은 recursion_limit 설정 - 많은 레퍼런스 처리용)
+            # Invoke the LangGraph agent with initial state
+            # Pass state including pre-loaded files for virtual filesystem access
+            initial_input = {
+                "messages": [HumanMessage(content=task)],
+                "files": state.get("files", {}),  # Pre-loaded PDF content
+                "todos": state.get("todos", []),
+            }
             result = self.agent.invoke(
-                {"messages": [HumanMessage(content=task)]},
-                {"recursion_limit": 300}
+                initial_input,
+                {"recursion_limit": 300}  # 높은 recursion_limit - 많은 레퍼런스 처리용
             )
             
             # Extract results from the agent output
@@ -217,13 +225,19 @@ Start by using parse_pdf to extract the PDF content, then proceed with validatio
                     if hasattr(msg, 'content') and msg.content:
                         output = msg.content
                         break
-            
+
+            # Get final state including files created during processing
+            final_files = result.get("files", {})
+            final_todos = result.get("todos", [])
+
             # Build result dictionary
             validation_result = {
                 "paper_path": paper_path,
                 "output": output,
                 "messages": messages,
-                "state": state,
+                "files": final_files,  # Virtual filesystem contents
+                "todos": final_todos,  # Final TODO state
+                "state": state,  # Original state for reference
                 "success": True,
             }
             
@@ -247,21 +261,28 @@ Start by using parse_pdf to extract the PDF content, then proceed with validatio
                 "error": str(e),
             }
     
-    def process_task(self, task: str) -> Dict[str, Any]:
+    def process_task(self, task: str, initial_files: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Process a custom task with the Deep Agent.
-        
+
         Args:
             task: Task description for the agent
-            
+            initial_files: Optional initial files for virtual filesystem
+
         Returns:
             Dictionary containing task results
         """
         try:
+            # Prepare initial input with state
+            initial_input = {
+                "messages": [HumanMessage(content=task)],
+                "files": initial_files or {},
+                "todos": [],
+            }
             result = self.agent.invoke(
-                {"messages": [HumanMessage(content=task)]},
+                initial_input,
                 {"recursion_limit": 300}
             )
-            
+
             # Extract output from messages
             messages = result.get("messages", [])
             output = ""
@@ -270,14 +291,16 @@ Start by using parse_pdf to extract the PDF content, then proceed with validatio
                     if hasattr(msg, 'content') and msg.content:
                         output = msg.content
                         break
-            
+
             return {
                 "task": task,
                 "output": output,
                 "messages": messages,
+                "files": result.get("files", {}),
+                "todos": result.get("todos", []),
                 "success": True,
             }
-            
+
         except Exception as e:
             return {
                 "task": task,
