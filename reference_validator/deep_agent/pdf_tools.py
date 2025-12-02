@@ -6,7 +6,7 @@ file system in manageable chunks to avoid exceeding context limits.
 """
 
 import os
-from typing import Annotated, Optional, Tuple, List
+from typing import Annotated, Optional, Tuple, List, Dict
 
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import InjectedToolCallId, tool
@@ -141,7 +141,7 @@ def find_references_section(text: str) -> Tuple[str, str, int]:
 def preload_pdf_to_filesystem(
     pdf_path: str,
     max_chunk_chars: int = 15000,
-) -> dict:
+) -> Tuple[Dict[str, str], str, int, int]:
     """
     Pre-load PDF content into virtual file system as chunks.
 
@@ -150,7 +150,11 @@ def preload_pdf_to_filesystem(
         max_chunk_chars: Maximum characters per chunk
 
     Returns:
-        Dictionary of file_path -> content for virtual filesystem
+        Tuple of:
+        - files: Dictionary of file_path -> content for virtual filesystem
+        - title: Extracted paper title
+        - page_count: Number of pages
+        - total_chars: Total number of characters in full text
     """
     files = {}
 
