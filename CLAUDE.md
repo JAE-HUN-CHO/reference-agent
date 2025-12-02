@@ -21,13 +21,13 @@ Based on teddynote-lab/deep-agents-from-scratch architecture:
 
 ### 2. LangGraph Workflow Mode
 Traditional pipeline with specialized agents:
-```
+```text
 Parser Agent -> Web Agent -> Validation Agent -> Context Agent -> Citation Agent -> Report
 ```
 
 ## Project Structure
 
-```
+```text
 reference_validator/
 ├── __init__.py              # Package initialization, exports validate_paper()
 ├── main.py                  # CLI entry point

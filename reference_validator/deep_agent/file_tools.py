@@ -205,8 +205,16 @@ def read_real_file(
     try:
         with open(expanded_path, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
+    except FileNotFoundError:
+        return f"FileNotFoundError: File '{file_path}' not found after path expansion to '{expanded_path}'."
+    except PermissionError:
+        return f"PermissionError: Permission denied accessing '{file_path}'."
+    except UnicodeDecodeError as e:
+        return f"UnicodeDecodeError: Encoding issue reading '{file_path}': {str(e)}"
+    except OSError as e:
+        return f"OSError: I/O error reading '{file_path}': {str(e)}"
     except Exception as e:
-        return f"Error reading file: {str(e)}"
+        return f"Unexpected error reading '{file_path}': {type(e).__name__}: {str(e)}"
 
     lines = content.splitlines()
     start_idx = offset
@@ -328,12 +336,35 @@ Use read_file('/input/paper_text.md') to read the extracted content."""
                 ],
             }
         )
-    except Exception as e:
+    except FileNotFoundError:
         return Command(
             update={
                 "messages": [
                     ToolMessage(
-                        f"Error parsing PDF: {str(e)}",
+                        f"FileNotFoundError: PDF file '{pdf_path}' not found after path expansion.",
+                        tool_call_id=tool_call_id
+                    )
+                ],
+            }
+        )
+    except PermissionError:
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        f"PermissionError: Permission denied accessing '{pdf_path}'.",
+                        tool_call_id=tool_call_id
+                    )
+                ],
+            }
+        )
+    except Exception as e:
+        import traceback
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        f"Unexpected error parsing PDF: {type(e).__name__}: {str(e)}\n{traceback.format_exc()}",
                         tool_call_id=tool_call_id
                     )
                 ],
