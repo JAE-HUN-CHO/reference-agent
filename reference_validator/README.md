@@ -11,8 +11,12 @@ DeepAgents 아키텍처를 기반으로 설계된 논문 레퍼런스 검증 시
 
 ## 지원 LLM
 
+### Upstage (기본)
+- **solar-pro2** (기본 모델)
+- solar-mini
+
 ### 로컬 (Ollama)
-- **glm-4.6:cloud** (기본 모델)
+- glm-4.6:cloud
 - llama3, llama3.1, llama3.2
 - qwen2.5
 - gemma2
@@ -20,7 +24,7 @@ DeepAgents 아키텍처를 기반으로 설계된 논문 레퍼런스 검증 시
 
 ### 클라우드
 - OpenAI: gpt-4, gpt-4o, gpt-4o-mini
-- Anthropic: claude-3-sonnet, claude-3-haiku
+- Anthropic: claude-sonnet-4-20250514, claude-3-haiku
 - Google: gemini-2.5-pro, gemini-2.5-flash
 
 ## 설치
@@ -35,6 +39,9 @@ venv\Scripts\activate  # Windows
 # 의존성 설치
 pip install -r requirements.txt
 
+# Upstage API 키 설정 (기본 LLM)
+export UPSTAGE_API_KEY=your_key
+
 # Ollama 설치 (로컬 LLM 사용 시)
 # https://ollama.ai 에서 설치 후:
 ollama pull llama3.2
@@ -45,10 +52,13 @@ ollama pull llama3.2
 ### 커맨드라인
 
 ```bash
-# 기본 실행 (Ollama glm-4.6:cloud)
+# 기본 실행 (Upstage solar-pro2)
 python main.py paper.pdf
 
-# Ollama 다른 모델
+# Upstage 다른 모델
+python main.py paper.pdf --provider upstage --model solar-mini
+
+# Ollama 모델
 python main.py paper.pdf --provider ollama --model llama3.2
 python main.py paper.pdf --provider ollama --model qwen2.5
 
@@ -76,10 +86,15 @@ python main.py paper.pdf --output results.json
 ```python
 from reference_validator import validate_paper, configure
 
-# LLM 설정 (기본: glm-4.6:cloud)
-configure(provider="ollama", model_name="glm-4.6:cloud")
+# 기본 설정 (Upstage solar-pro2)
+report = validate_paper("paper.pdf")
 
-# 검증 실행
+# 또는 LLM 직접 설정
+configure(provider="upstage", model_name="solar-pro2")
+report = validate_paper("paper.pdf")
+
+# Ollama 사용 시
+configure(provider="ollama", model_name="llama3.2")
 report = validate_paper("paper.pdf")
 
 # 결과 확인
@@ -95,7 +110,7 @@ from reference_validator import configure_multi_model, ModelPresets
 
 # Parser는 빠른 모델, Validation은 강력한 모델 사용
 configure_multi_model(
-    parser_config=ModelPresets.OLLAMA_GLM4_CLOUD,
+    parser_config=ModelPresets.UPSTAGE_SOLAR_MINI,
     validation_config=ModelPresets.OPENAI_GPT4O,
     context_config=ModelPresets.GOOGLE_GEMINI_PRO,
 )
@@ -136,7 +151,7 @@ configure_multi_model(
 검증 결과 요약
 ================================================================================
 
-📄 논문: Attention Is All You Need
+📄 논문: [검증 대상 논문 제목]
 📊 총 레퍼런스: 42개
 
 🔍 존재 검증 결과:
@@ -163,6 +178,7 @@ configure_multi_model(
 
 | 변수명 | 설명 | 필수 |
 |--------|------|------|
+| `UPSTAGE_API_KEY` | Upstage API 키 | 기본 사용 시 필수 |
 | `TAVILY_API_KEY` | Tavily 웹 검색 API 키 | 권장 |
 | `OPENAI_API_KEY` | OpenAI API 키 | OpenAI 사용 시 |
 | `ANTHROPIC_API_KEY` | Anthropic API 키 | Claude 사용 시 |

@@ -23,7 +23,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 
 from .state import DeepAgentState, create_initial_deep_state
-from .file_tools import ls, read_file, write_file, save_to_file
+from .file_tools import ls, read_file, write_file, save_to_file, read_real_file, parse_pdf
 from .todo_tools import write_todos, read_todos, create_todos, format_todos_for_display
 from .research_tools import think_tool, create_tavily_search_tool
 from .task_tool import create_task_tool, SubAgent, get_default_subagents
@@ -37,14 +37,14 @@ from .prompts import (
 
 class DeepAgentSupervisor:
     """Deep Agent Supervisor for Reference Validation.
-    
+
     Orchestrates the complete reference validation workflow using:
     - Sub-agent delegation for parallel reference searches
     - Virtual file system for context offloading
     - TODO management for progress tracking
     - Think tool for strategic reflection
     """
-    
+
     def __init__(
         self,
         model: BaseChatModel,
@@ -54,7 +54,7 @@ class DeepAgentSupervisor:
         verbose: bool = True,
     ):
         """Initialize the Deep Agent Supervisor.
-        
+
         Args:
             model: LLM to use for the supervisor and sub-agents
             tavily_api_key: Tavily API key for web search
@@ -67,19 +67,19 @@ class DeepAgentSupervisor:
         self.max_concurrent_agents = max_concurrent_agents
         self.max_iterations = max_iterations
         self.verbose = verbose
-        
+
         # Create tools
         self.tools = self._create_tools()
-        
+
         # Create agent
         self.agent = self._create_agent()
-    
+
     def _create_tools(self) -> List[BaseTool]:
         """Create all tools for the supervisor agent."""
         # Sub-agent tools
         tavily_search = create_tavily_search_tool(api_key=self.tavily_api_key)
         sub_agent_tools = [tavily_search, think_tool]
-        
+
         # Create task delegation tool
         subagents = get_default_subagents()
         task_tool = create_task_tool(
@@ -88,15 +88,18 @@ class DeepAgentSupervisor:
             self.model,
             DeepAgentState,
         )
-        
+
         # All tools available to supervisor
         all_tools = [
-            # File system tools
+            # Virtual file system tools
             ls,
             read_file,
             write_file,
-            # PDF reading tool
+            # PDF reading tools (chunked for large PDFs)
             read_pdf,
+            # Real file system tools (PDF 파싱 포함)
+            read_real_file,
+            parse_pdf,
             # TODO tools
             write_todos,
             read_todos,
@@ -108,7 +111,7 @@ class DeepAgentSupervisor:
         ]
 
         return all_tools
-    
+
     def _create_agent(self):
         """Create the supervisor agent using LangGraph's create_react_agent."""
         # Create the system prompt
@@ -116,16 +119,18 @@ class DeepAgentSupervisor:
             max_concurrent_research_units=self.max_concurrent_agents,
             max_researcher_iterations=self.max_iterations,
         )
-        
+
         # Create react agent using LangGraph's prebuilt function
+        # Pass DeepAgentState as state_schema to enable virtual filesystem access
         agent = create_react_agent(
             model=self.model,
             tools=self.tools,
             prompt=system_prompt,
+            state_schema=DeepAgentState,  # Use our custom state with files, todos
         )
-        
+
         return agent
-    
+
     def validate_paper(
         self,
         paper_path: str,
@@ -147,12 +152,12 @@ class DeepAgentSupervisor:
             print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"{'='*60}\n")
 
-        # Create initial state
-        state = create_initial_deep_state(paper_path)
+        # Create initial state (preload_pdf=False since we do chunked loading below)
+        state = create_initial_deep_state(paper_path, preload_pdf=False)
 
-        # Pre-load PDF content into virtual file system to avoid context overflow
+        # Pre-load PDF content into virtual file system with chunking to avoid context overflow
         if self.verbose:
-            print("   📄 Pre-loading PDF into virtual file system...")
+            print("   📄 Pre-loading PDF into virtual file system (chunked)...")
         try:
             files, title, page_count, total_chars = preload_pdf_to_filesystem(
                 paper_path,
@@ -166,7 +171,7 @@ class DeepAgentSupervisor:
         except Exception as e:
             if self.verbose:
                 print(f"      ⚠️ PDF pre-load warning: {e}")
-            # Continue without pre-loading - agent can use read_pdf tool
+            # Continue without pre-loading - agent can use parse_pdf tool
 
         # Build the task description (no PDF content included - it's in virtual filesystem)
         if max_references:
@@ -205,16 +210,20 @@ Your workflow:
 8. Generate a final report at `/reports/validation_report.md`
 
 Start by using `ls()` to see the pre-loaded files."""
-        
+
         # Run the agent
         try:
             # Invoke the LangGraph agent with pre-loaded files
-            result = self.agent.invoke({
+            initial_input = {
                 "messages": [HumanMessage(content=task)],
                 "files": state.get("files", {}),  # Pass pre-loaded PDF chunks
                 "todos": state.get("todos", []),
-            })
-            
+            }
+            result = self.agent.invoke(
+                initial_input,
+                {"recursion_limit": 300}  # 높은 recursion_limit - 많은 레퍼런스 처리용
+            )
+
             # Extract results from the agent output
             messages = result.get("messages", [])
             output = ""
@@ -224,28 +233,34 @@ Start by using `ls()` to see the pre-loaded files."""
                     if hasattr(msg, 'content') and msg.content:
                         output = msg.content
                         break
-            
+
+            # Get final state including files created during processing
+            final_files = result.get("files", {})
+            final_todos = result.get("todos", [])
+
             # Build result dictionary
             validation_result = {
                 "paper_path": paper_path,
                 "output": output,
                 "messages": messages,
-                "state": state,
+                "files": final_files,  # Virtual filesystem contents
+                "todos": final_todos,  # Final TODO state
+                "state": state,  # Original state for reference
                 "success": True,
             }
-            
+
             if self.verbose:
                 print(f"\n{'='*60}")
                 print(f"Validation Complete")
                 print(f"Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 print(f"{'='*60}\n")
-            
+
             return validation_result
-            
+
         except Exception as e:
             if self.verbose:
                 print(f"\n⚠️ Validation Error: {str(e)}")
-            
+
             return {
                 "paper_path": paper_path,
                 "output": f"Error: {str(e)}",
@@ -253,21 +268,29 @@ Start by using `ls()` to see the pre-loaded files."""
                 "success": False,
                 "error": str(e),
             }
-    
-    def process_task(self, task: str) -> Dict[str, Any]:
+
+    def process_task(self, task: str, initial_files: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Process a custom task with the Deep Agent.
-        
+
         Args:
             task: Task description for the agent
-            
+            initial_files: Optional initial files for virtual filesystem
+
         Returns:
             Dictionary containing task results
         """
         try:
-            result = self.agent.invoke({
+            # Prepare initial input with state
+            initial_input = {
                 "messages": [HumanMessage(content=task)],
-            })
-            
+                "files": initial_files or {},
+                "todos": [],
+            }
+            result = self.agent.invoke(
+                initial_input,
+                {"recursion_limit": 300}
+            )
+
             # Extract output from messages
             messages = result.get("messages", [])
             output = ""
@@ -276,14 +299,16 @@ Start by using `ls()` to see the pre-loaded files."""
                     if hasattr(msg, 'content') and msg.content:
                         output = msg.content
                         break
-            
+
             return {
                 "task": task,
                 "output": output,
                 "messages": messages,
+                "files": result.get("files", {}),
+                "todos": result.get("todos", []),
                 "success": True,
             }
-            
+
         except Exception as e:
             return {
                 "task": task,
@@ -299,12 +324,12 @@ def create_deep_agent_supervisor(
     verbose: bool = True,
 ) -> DeepAgentSupervisor:
     """Factory function to create a Deep Agent Supervisor.
-    
+
     Args:
         model: LLM to use (uses default from config if not provided)
         tavily_api_key: Tavily API key
         verbose: Whether to print detailed logs
-        
+
     Returns:
         Configured DeepAgentSupervisor instance
     """
@@ -314,7 +339,7 @@ def create_deep_agent_supervisor(
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from config import settings
         model = settings.get_parser_llm()
-    
+
     return DeepAgentSupervisor(
         model=model,
         tavily_api_key=tavily_api_key,
@@ -324,14 +349,14 @@ def create_deep_agent_supervisor(
 
 if __name__ == "__main__":
     print("=== Deep Agent Supervisor 테스트 ===")
-    
+
     # Test creating supervisor (without running)
     print("\n1. Supervisor 생성 테스트:")
-    
+
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from config import settings
-    
+
     try:
         model = settings.get_parser_llm()
         supervisor = DeepAgentSupervisor(
@@ -341,7 +366,7 @@ if __name__ == "__main__":
         print(f"   Tools 수: {len(supervisor.tools)}")
         print(f"   Tool 이름: {[t.name for t in supervisor.tools]}")
         print("   ✅ Supervisor 생성 성공")
-        
+
     except Exception as e:
         print(f"   ⚠️ 생성 오류: {e}")
         print("   (이것은 LLM 연결이 없어서 정상입니다)")

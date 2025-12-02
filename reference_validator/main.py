@@ -5,27 +5,30 @@
 Deep Agent 아키텍처 기반 (teddynote-lab/deep-agents-from-scratch)
 
 사용법:
-    # 기본 실행 (Ollama glm-4.6:cloud)
+    # 기본 실행 (Upstage solar-pro2)
     python main.py paper.pdf
-    
-    # Ollama 다른 모델
-    python main.py paper.pdf --provider ollama --model qwen2.5
-    
+
+    # Upstage 다른 모델
+    python main.py paper.pdf --provider upstage --model solar-mini
+
+    # Ollama 모델
+    python main.py paper.pdf --provider ollama --model llama3.2
+
     # OpenAI
     python main.py paper.pdf --provider openai --model gpt-4o
-    
+
     # Google Gemini
     python main.py paper.pdf --provider google --model gemini-2.5-pro
-    
+
     # Deep Agent 모드 (기본)
     python main.py paper.pdf --mode deep-agent
-    
+
     # 기존 LangGraph 워크플로우 모드
     python main.py paper.pdf --mode langgraph
-    
+
     # 최대 레퍼런스 수 제한
     python main.py paper.pdf --max-refs 10
-    
+
     # 출력 파일 지정
     python main.py paper.pdf --output results.json
 """
@@ -89,16 +92,16 @@ Deep Agent 아키텍처 특징:
     parser.add_argument(
         "--provider",
         type=str,
-        default="ollama",
-        choices=["ollama", "openai", "anthropic", "google"],
-        help="LLM 제공자 (기본: ollama)"
+        default="upstage",
+        choices=["upstage", "ollama", "openai", "anthropic", "google"],
+        help="LLM 제공자 (기본: upstage)"
     )
-    
+
     parser.add_argument(
         "--model",
         type=str,
-        default="glm-4.6:cloud",
-        help="사용할 모델 이름 (기본: glm-4.6:cloud)"
+        default="solar-pro2",
+        help="사용할 모델 이름 (기본: solar-pro2)"
     )
     
     parser.add_argument(

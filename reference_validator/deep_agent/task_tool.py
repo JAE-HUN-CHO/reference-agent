@@ -70,10 +70,11 @@ def create_simple_sub_agent(
             }
         
         try:
-            # Run the agent
-            result = agent.invoke({
-                "messages": messages,
-            })
+            # Run the agent (높은 recursion_limit 설정)
+            result = agent.invoke(
+                {"messages": messages},
+                {"recursion_limit": 100}
+            )
             
             # Get output from result messages
             result_messages = result.get("messages", [])
