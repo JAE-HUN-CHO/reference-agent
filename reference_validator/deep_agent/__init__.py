@@ -38,6 +38,13 @@ from .research_tools import (
     create_tavily_search_tool,
 )
 
+from .pdf_tools import (
+    read_pdf,
+    preload_pdf_to_filesystem,
+    extract_text_from_pdf,
+    chunk_text,
+)
+
 from .task_tool import (
     SubAgent,
     create_task_tool,
@@ -72,6 +79,11 @@ __all__ = [
     "ls",
     "read_file",
     "write_file",
+    # PDF tools
+    "read_pdf",
+    "preload_pdf_to_filesystem",
+    "extract_text_from_pdf",
+    "chunk_text",
     # TODO tools
     "write_todos",
     "read_todos",

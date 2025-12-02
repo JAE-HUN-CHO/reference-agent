@@ -27,6 +27,7 @@ from .file_tools import ls, read_file, write_file, save_to_file
 from .todo_tools import write_todos, read_todos, create_todos, format_todos_for_display
 from .research_tools import think_tool, create_tavily_search_tool
 from .task_tool import create_task_tool, SubAgent, get_default_subagents
+from .pdf_tools import read_pdf, preload_pdf_to_filesystem
 from .prompts import (
     format_supervisor_prompt,
     RESEARCHER_INSTRUCTIONS,
@@ -94,6 +95,8 @@ class DeepAgentSupervisor:
             ls,
             read_file,
             write_file,
+            # PDF reading tool
+            read_pdf,
             # TODO tools
             write_todos,
             read_todos,
@@ -103,7 +106,7 @@ class DeepAgentSupervisor:
             # Delegation tool
             task_tool,
         ]
-        
+
         return all_tools
     
     def _create_agent(self):
@@ -129,11 +132,11 @@ class DeepAgentSupervisor:
         max_references: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Validate references in a paper.
-        
+
         Args:
             paper_path: Path to the PDF paper
             max_references: Maximum references to validate (None = all)
-            
+
         Returns:
             Dictionary containing validation results and report
         """
@@ -143,57 +146,73 @@ class DeepAgentSupervisor:
             print(f"Paper: {paper_path}")
             print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"{'='*60}\n")
-        
+
         # Create initial state
         state = create_initial_deep_state(paper_path)
-        
-        # Build the task description
+
+        # Pre-load PDF content into virtual file system to avoid context overflow
+        if self.verbose:
+            print("   📄 Pre-loading PDF into virtual file system...")
+        try:
+            files, title, page_count, total_chars = preload_pdf_to_filesystem(
+                paper_path,
+                max_chunk_chars=12000,  # Conservative chunk size for context safety
+            )
+            state["files"] = files
+            state["paper_title"] = title
+            if self.verbose:
+                print(f"      ✓ Loaded: {title[:50]}... ({page_count} pages, {total_chars:,} chars)")
+                print(f"      ✓ Created {len(files)} files in virtual filesystem")
+        except Exception as e:
+            if self.verbose:
+                print(f"      ⚠️ PDF pre-load warning: {e}")
+            # Continue without pre-loading - agent can use read_pdf tool
+
+        # Build the task description (no PDF content included - it's in virtual filesystem)
         if max_references:
-            task = f"""Please validate the references in the paper at: {paper_path}
+            task = f"""Validate references in the paper.
 
-Validate up to {max_references} references.
+The PDF content has been pre-loaded into the virtual file system.
 
-Your workflow should be:
-1. Create a TODO list to track progress
-2. Parse the PDF to extract references
-3. For each reference, search to verify it exists
-4. Validate each reference against search results
-5. Save results to the virtual file system
-6. Generate a final validation report
+**IMPORTANT: Do NOT try to read the PDF file directly. Use the virtual file system instead.**
 
-Use the virtual file system to store:
-- Parsed references (input/references.md)
-- Search results (search/ref_[id].md)
-- Validation results (validation/ref_[id].md)
-- Final report (reports/validation_report.md)
+Your workflow:
+1. Use `ls()` to see available files
+2. Read `/input/paper_info.md` for paper metadata
+3. Read `/input/references.md` (or references_part_*.md) to get the reference list
+4. Create a TODO list to track progress
+5. For each reference (up to {max_references}), search to verify it exists
+6. Validate each reference against search results
+7. Save results to `/validation/` directory
+8. Generate a final report at `/reports/validation_report.md`
 
-Start by creating your TODO list and then proceed with the validation."""
+Start by using `ls()` to see the pre-loaded files."""
         else:
-            task = f"""Please validate ALL references in the paper at: {paper_path}
+            task = f"""Validate ALL references in the paper.
 
-Your workflow should be:
-1. Create a TODO list to track progress
-2. Parse the PDF to extract references
-3. For each reference, delegate searches to sub-agents for parallel processing
-4. Validate each reference against search results
-5. Save results to the virtual file system
-6. Generate a comprehensive final validation report
+The PDF content has been pre-loaded into the virtual file system.
 
-Use sub-agent delegation to process multiple references in parallel (up to {self.max_concurrent_agents} at a time).
+**IMPORTANT: Do NOT try to read the PDF file directly. Use the virtual file system instead.**
 
-Use the virtual file system to store:
-- Parsed references (input/references.md)
-- Search results (search/ref_[id].md)  
-- Validation results (validation/ref_[id].md)
-- Final report (reports/validation_report.md)
+Your workflow:
+1. Use `ls()` to see available files
+2. Read `/input/paper_info.md` for paper metadata
+3. Read `/input/references.md` (or references_part_*.md) to get the reference list
+4. Create a TODO list to track progress
+5. For each reference, delegate searches to sub-agents for parallel processing (up to {self.max_concurrent_agents} at a time)
+6. Validate each reference against search results
+7. Save results to `/validation/` directory
+8. Generate a final report at `/reports/validation_report.md`
 
-Start by creating your TODO list and then proceed with the validation."""
+Start by using `ls()` to see the pre-loaded files."""
         
         # Run the agent
         try:
-            # Invoke the LangGraph agent
+            # Invoke the LangGraph agent with pre-loaded files
             result = self.agent.invoke({
                 "messages": [HumanMessage(content=task)],
+                "files": state.get("files", {}),  # Pass pre-loaded PDF chunks
+                "todos": state.get("todos", []),
             })
             
             # Extract results from the agent output
