@@ -1,7 +1,8 @@
 """
-LLM 설정 모듈 - Ollama 및 Cloud 모델 지원
+LLM 설정 모듈 - Upstage, Ollama 및 Cloud 모델 지원
 
 지원하는 모델:
+- Upstage: solar-pro2 (기본), solar-mini
 - Ollama: llama3, llama3.1, llama3.2, qwen2.5, gemma2, mistral 등
 - Cloud: OpenAI (gpt-4, gpt-4o), Anthropic (claude-3), Google (gemini-pro)
 """
@@ -15,6 +16,7 @@ from langchain_core.language_models import BaseChatModel
 
 class LLMProvider(Enum):
     """LLM 제공자 열거형"""
+    UPSTAGE = "upstage"
     OLLAMA = "ollama"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -45,14 +47,16 @@ class LLMFactory:
     def create_llm(config: LLMConfig) -> BaseChatModel:
         """
         설정에 따라 적절한 LLM 인스턴스를 생성합니다.
-        
+
         Args:
             config: LLM 설정
-            
+
         Returns:
             LangChain 호환 LLM 인스턴스
         """
-        if config.provider == LLMProvider.OLLAMA:
+        if config.provider == LLMProvider.UPSTAGE:
+            return LLMFactory._create_upstage_llm(config)
+        elif config.provider == LLMProvider.OLLAMA:
             return LLMFactory._create_ollama_llm(config)
         elif config.provider == LLMProvider.OPENAI:
             return LLMFactory._create_openai_llm(config)
@@ -62,6 +66,21 @@ class LLMFactory:
             return LLMFactory._create_google_llm(config)
         else:
             raise ValueError(f"지원하지 않는 LLM 제공자: {config.provider}")
+
+    @staticmethod
+    def _create_upstage_llm(config: LLMConfig) -> BaseChatModel:
+        """Upstage LLM 인스턴스 생성"""
+        from langchain_upstage import ChatUpstage
+
+        api_key = config.api_key or os.getenv("UPSTAGE_API_KEY")
+        if not api_key:
+            raise ValueError("Upstage API 키가 필요합니다. UPSTAGE_API_KEY 환경 변수를 설정하세요.")
+
+        return ChatUpstage(
+            model=config.model_name,
+            temperature=config.temperature,
+            api_key=api_key,
+        )
     
     @staticmethod
     def _create_ollama_llm(config: LLMConfig) -> BaseChatModel:
@@ -124,7 +143,20 @@ class LLMFactory:
 # 기본 설정 프리셋
 class ModelPresets:
     """모델 프리셋 설정"""
-    
+
+    # Upstage 프리셋 (기본)
+    UPSTAGE_SOLAR_PRO2 = LLMConfig(
+        provider=LLMProvider.UPSTAGE,
+        model_name="solar-pro2",
+        temperature=0.1,
+    )
+
+    UPSTAGE_SOLAR_MINI = LLMConfig(
+        provider=LLMProvider.UPSTAGE,
+        model_name="solar-mini",
+        temperature=0.1,
+    )
+
     # Ollama 프리셋
     OLLAMA_GLM4_CLOUD = LLMConfig(
         provider=LLMProvider.OLLAMA,
@@ -220,8 +252,8 @@ class Settings:
         # 경로 설정
         workspace_dir: str = "workspace",
     ):
-        # 기본 LLM으로 Ollama glm-4.6:cloud 사용
-        default_config = ModelPresets.OLLAMA_GLM4_CLOUD
+        # 기본 LLM으로 Upstage solar-pro2 사용
+        default_config = ModelPresets.UPSTAGE_SOLAR_PRO2
         
         self.parser_llm_config = parser_llm_config or default_config
         self.web_llm_config = web_llm_config or default_config
@@ -271,8 +303,8 @@ settings = Settings()
 
 
 def configure(
-    provider: str = "ollama",
-    model_name: str = "glm-4.6:cloud",
+    provider: str = "upstage",
+    model_name: str = "solar-pro2",
     temperature: float = 0.1,
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
@@ -281,23 +313,24 @@ def configure(
 ) -> Settings:
     """
     전역 설정을 간편하게 구성합니다.
-    
+
     Args:
-        provider: LLM 제공자 ("ollama", "openai", "anthropic", "google")
+        provider: LLM 제공자 ("upstage", "ollama", "openai", "anthropic", "google")
         model_name: 모델 이름
         temperature: 생성 온도
         base_url: 커스텀 API URL (Ollama 등)
         api_key: API 키
         tavily_api_key: Tavily API 키
         **kwargs: 추가 설정
-        
+
     Returns:
         Settings 인스턴스
     """
     global settings
-    
+
     # Provider 매핑
     provider_map = {
+        "upstage": LLMProvider.UPSTAGE,
         "ollama": LLMProvider.OLLAMA,
         "openai": LLMProvider.OPENAI,
         "anthropic": LLMProvider.ANTHROPIC,
@@ -371,17 +404,23 @@ def configure_multi_model(
 if __name__ == "__main__":
     # 테스트
     print("=== LLM 설정 테스트 ===")
-    
+
+    # Upstage 설정 테스트 (기본)
+    print("\n1. Upstage 설정 (기본):")
+    configure(provider="upstage", model_name="solar-pro2")
+    print(f"   Provider: {settings.parser_llm_config.provider}")
+    print(f"   Model: {settings.parser_llm_config.model_name}")
+
     # Ollama 설정 테스트
-    print("\n1. Ollama 설정:")
+    print("\n2. Ollama 설정:")
     configure(provider="ollama", model_name="llama3.2")
     print(f"   Provider: {settings.parser_llm_config.provider}")
     print(f"   Model: {settings.parser_llm_config.model_name}")
-    
+
     # 멀티 모델 설정 테스트
-    print("\n2. 멀티 모델 설정:")
+    print("\n3. 멀티 모델 설정:")
     configure_multi_model(
-        parser_config=ModelPresets.OLLAMA_LLAMA3_2,
+        parser_config=ModelPresets.UPSTAGE_SOLAR_PRO2,
         validation_config=ModelPresets.OPENAI_GPT4O,
     )
     print(f"   Parser: {settings.parser_llm_config.model_name}")

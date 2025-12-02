@@ -401,8 +401,8 @@ def run_validation(
     # 그래프 구축 및 실행
     graph = build_graph()
     
-    # 실행
-    final_state = graph.invoke(initial_state)
+    # 실행 (42개 레퍼런스 * 5개 에이전트 = 210+ 반복 필요)
+    final_state = graph.invoke(initial_state, {"recursion_limit": 300})
     
     # 최대 레퍼런스 수 제한이 있으면 적용
     if max_references and len(final_state["references"]) > max_references:
