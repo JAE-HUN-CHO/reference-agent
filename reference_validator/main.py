@@ -39,6 +39,8 @@ import json
 import argparse
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv() 
 
 # 현재 디렉토리를 파이썬 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
