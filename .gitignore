@@ -52,9 +52,5 @@ deep_agents_ref/
 
 # Output files
 *.json
-!package.json
-!requirements.json
-
-# PDF files (test papers)
-*.pdf
 .venv/
+*.pdf
